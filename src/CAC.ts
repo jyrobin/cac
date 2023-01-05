@@ -23,13 +23,9 @@ interface ParsedArgv {
   }
 }
 
-class CAC extends EventEmitter {
-  /** The program name to display in help and version message */
+export interface CacCntx<T> {
+  env: T
   name: string
-  commands: Command[]
-  globalCommand: GlobalCommand
-  matchedCommand?: Command
-  matchedCommandName?: string
   /**
    * Raw CLI arguments
    */
@@ -42,7 +38,16 @@ class CAC extends EventEmitter {
    * Parsed CLI options, camelCased
    */
   options: ParsedArgv['options']
+  matchedCommand?: Command<T>
+  matchedCommandName?: string
+  result?: unknown
+}
 
+class CAC<T> extends EventEmitter {
+  /** The program name to display in help and version message */
+  name: string
+  commands: Command<T>[]
+  globalCommand: GlobalCommand<T>
   showHelpOnExit?: boolean
   showVersionOnExit?: boolean
 
@@ -53,10 +58,7 @@ class CAC extends EventEmitter {
     super()
     this.name = name
     this.commands = []
-    this.rawArgs = []
-    this.args = []
-    this.options = {}
-    this.globalCommand = new GlobalCommand(this)
+    this.globalCommand = new GlobalCommand<T>(this)
     this.globalCommand.usage('<command> [options]')
   }
 
@@ -74,7 +76,7 @@ class CAC extends EventEmitter {
    * Add a sub-command
    */
   command(rawName: string, description?: string, config?: CommandConfig) {
-    const command = new Command(rawName, description || '', config, this)
+    const command = new Command<T>(rawName, description || '', config, this)
     command.globalCommand = this.globalCommand
     this.commands.push(command)
     return command
@@ -127,11 +129,11 @@ class CAC extends EventEmitter {
    * Otherwise output the global one.
    *
    */
-  outputHelp() {
-    if (this.matchedCommand) {
-      this.matchedCommand.outputHelp()
+  outputHelp(cntx: CacCntx<T>) {
+    if (cntx.matchedCommand) {
+      cntx.matchedCommand.outputHelp(cntx)
     } else {
-      this.globalCommand.outputHelp()
+      this.globalCommand.outputHelp(cntx)
     }
   }
 
@@ -144,39 +146,43 @@ class CAC extends EventEmitter {
   }
 
   private setParsedInfo(
+    cntx: CacCntx<T>,
     { args, options }: ParsedArgv,
-    matchedCommand?: Command,
+    matchedCommand?: Command<T>,
     matchedCommandName?: string
   ) {
-    this.args = args
-    this.options = options
+    cntx.args = args
+    cntx.options = options
     if (matchedCommand) {
-      this.matchedCommand = matchedCommand
+      cntx.matchedCommand = matchedCommand
     }
     if (matchedCommandName) {
-      this.matchedCommandName = matchedCommandName
+      cntx.matchedCommandName = matchedCommandName
     }
-    return this
   }
 
-  unsetMatchedCommand() {
-    this.matchedCommand = undefined
-    this.matchedCommandName = undefined
+  unsetMatchedCommand(cntx: CacCntx<T>) {
+    cntx.matchedCommand = undefined
+    cntx.matchedCommandName = undefined
   }
 
   /**
    * Parse argv
    */
   parse(
+    env: T,
     argv = processArgs,
     {
       /** Whether to run the action for matched command */
       run = true,
     } = {}
-  ): ParsedArgv {
-    this.rawArgs = argv
-    if (!this.name) {
-      this.name = argv[1] ? getFileName(argv[1]) : 'cli'
+  ): CacCntx<T> {
+    const cntx: CacCntx<T> = {
+      env,
+      rawArgs: argv,
+      name: this.name || argv[1] ? getFileName(argv[1]) : 'cli',
+      args: [],
+      options: {},
     }
 
     let shouldParse = true
@@ -192,7 +198,7 @@ class CAC extends EventEmitter {
           ...parsed,
           args: parsed.args.slice(1),
         }
-        this.setParsedInfo(parsedInfo, command, commandName)
+        this.setParsedInfo(cntx, parsedInfo, command, commandName)
         this.emit(`command:${commandName}`, command)
       }
     }
@@ -203,7 +209,7 @@ class CAC extends EventEmitter {
         if (command.name === '') {
           shouldParse = false
           const parsed = this.mri(argv.slice(2), command)
-          this.setParsedInfo(parsed, command)
+          this.setParsedInfo(cntx, parsed, command)
           this.emit(`command:!`, command)
         }
       }
@@ -211,37 +217,39 @@ class CAC extends EventEmitter {
 
     if (shouldParse) {
       const parsed = this.mri(argv.slice(2))
-      this.setParsedInfo(parsed)
+      this.setParsedInfo(cntx, parsed)
     }
 
-    if (this.options.help && this.showHelpOnExit) {
-      this.outputHelp()
+    if (cntx.options.help && this.showHelpOnExit) {
+      this.outputHelp(cntx)
       run = false
-      this.unsetMatchedCommand()
+      this.unsetMatchedCommand(cntx)
     }
 
-    if (this.options.version && this.showVersionOnExit && this.matchedCommandName == null) {
+    if (
+      cntx.options.version &&
+      this.showVersionOnExit &&
+      cntx.matchedCommandName == null
+    ) {
       this.outputVersion()
       run = false
-      this.unsetMatchedCommand()
+      this.unsetMatchedCommand(cntx)
     }
-
-    const parsedArgv = { args: this.args, options: this.options }
 
     if (run) {
-      this.runMatchedCommand()
+      cntx.result = this.runMatchedCommand(cntx)
     }
 
-    if (!this.matchedCommand && this.args[0]) {
+    if (!cntx.matchedCommand && cntx.args[0]) {
       this.emit('command:*')
     }
 
-    return parsedArgv
+    return cntx
   }
 
   private mri(
     argv: string[],
-    /** Matched command */ command?: Command
+    /** Matched command */ command?: Command<T>
   ): ParsedArgv {
     // All added options
     const cliOptions = [
@@ -317,18 +325,18 @@ class CAC extends EventEmitter {
     }
   }
 
-  runMatchedCommand() {
-    const { args, options, matchedCommand: command } = this
+  runMatchedCommand(cntx: CacCntx<T>) {
+    const { args, options, matchedCommand: command } = cntx
 
     if (!command || !command.commandAction) return
 
-    command.checkUnknownOptions()
+    command.checkUnknownOptions(cntx)
 
-    command.checkOptionValue()
+    command.checkOptionValue(cntx)
 
-    command.checkRequiredArgs()
+    command.checkRequiredArgs(cntx)
 
-    const actionArgs: any[] = []
+    const actionArgs: any[] = [cntx.env]
     command.args.forEach((arg, index) => {
       if (arg.variadic) {
         actionArgs.push(args.slice(index))

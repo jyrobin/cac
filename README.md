@@ -6,6 +6,13 @@
 
 **C**ommand **A**nd **C**onquer is a JavaScript library for building CLI apps.
 
+This is forked from [cacjs/cac](https://github.com/cacjs/cac) for the purpose of
+being able to pass an extra context object when processing commands, so that e.g.
+
+- the same CAC instance can process multiple requests concurrently,
+  while each request still has its own context, e.g. for logging/response
+- multiple CAC instances can be composed to form larger hierarchy
+
 ## Features
 
 - **Super light-weight**: No dependency, just a single file.

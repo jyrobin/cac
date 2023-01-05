@@ -56,7 +56,7 @@ test('negated option', () => {
 
   cli.option('--bar [bar]', 'Set bar').option('--no-bar', 'Disable bar')
 
-  const { options } = cli.parse(['node', 'bin', '--foo', 'foo', '--bar'])
+  const { options } = cli.parse(null, ['node', 'bin', '--foo', 'foo', '--bar'])
   expect(options).toEqual({
     '--': [],
     foo: 'foo',
@@ -67,7 +67,7 @@ test('negated option', () => {
 test('double dashes', () => {
   const cli = cac()
 
-  const { args, options } = cli.parse([
+  const { args, options } = cli.parse(null, [
     'node',
     'bin',
     'foo',
@@ -87,7 +87,7 @@ test('default value for negated option', () => {
   cli.option('--no-clear-screen', 'no clear screen')
   cli.option('--no-a-b, --no-c-d', 'desc')
 
-  const { options } = cli.parse(`node bin`.split(' '))
+  const { options } = cli.parse(null, `node bin`.split(' '))
 
   expect(options).toEqual({ '--': [], clearScreen: true, aB: true, cD: true })
 })
@@ -98,9 +98,10 @@ test('negated option validation', () => {
   cli.option('--config <config>', 'config file')
   cli.option('--no-config', 'no config file')
 
-  const { options } = cli.parse(`node bin --no-config`.split(' '))
+  const cntx = cli.parse(null, `node bin --no-config`.split(' '))
+  const { options } = cntx
 
-  cli.globalCommand.checkOptionValue()
+  cli.globalCommand.checkOptionValue(cntx)
   expect(options.config).toBe(false)
 })
 
@@ -118,17 +119,20 @@ test('array types without transformFunction', () => {
     .option('--scale [level]', 'Scaling level')
 
   const { options: options1 } = cli.parse(
+    null,
     `node bin --externals.env.prod production --scale`.split(' ')
   )
   expect(options1.externals).toEqual([{ env: { prod: 'production' } }])
   expect(options1.scale).toEqual(true)
 
   const { options: options2 } = cli.parse(
+    null,
     `node bin --externals foo --externals bar`.split(' ')
   )
   expect(options2.externals).toEqual(['foo', 'bar'])
 
   const { options: options3 } = cli.parse(
+    null,
     `node bin --externals.env foo --externals.env bar`.split(' ')
   )
   expect(options3.externals).toEqual([{ env: ['foo', 'bar'] }])
@@ -145,6 +149,7 @@ test('array types with transformFunction', () => {
     .option('--scale [level]', 'Scaling level')
 
   const { options } = cli.parse(
+    null,
     `node bin build app.js --config config.js --scale`.split(' ')
   )
   expect(options.config).toEqual(['config.js'])
@@ -161,7 +166,7 @@ test('throw on unknown options', () => {
     .action(() => {})
 
   expect(() => {
-    cli.parse(`node bin build app.js --fooBar --a-b --xx`.split(' '))
+    cli.parse(null, `node bin build app.js --fooBar --a-b --xx`.split(' '))
   }).toThrowError('Unknown option `--xx`')
 })
 

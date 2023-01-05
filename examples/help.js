@@ -6,11 +6,11 @@ cli.option('--type [type]', 'Choose a project type', {
 })
 cli.option('--name <name>', 'Provide your name')
 
-cli.command('lint [...files]', 'Lint files').action((files, options) => {
+cli.command('lint [...files]', 'Lint files').action((env, files, options) => {
   console.log(files, options)
 })
 
-cli.command('[...files]', 'Run files').action((files, options) => {
+cli.command('[...files]', 'Run files').action((env, files, options) => {
   console.log('run', files, options)
 })
 

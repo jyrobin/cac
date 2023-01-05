@@ -9,14 +9,14 @@ cli
 cli
   .command('bar <a> <b> [...rest]', 'The bar command')
   .option('--bad', 'It is bad')
-  .action((a, b, rest) => {
+  .action((env, a, b, rest) => {
     console.log(a, b, rest)
   })
 
 cli
   .command('cook <...food>', 'Cook some good')
   .option('--bar', 'Bar is a boolean option')
-  .action((food, options) => {
+  .action((env, food, options) => {
     console.log(food, options)
   })
 
@@ -24,7 +24,7 @@ cli
   .command('[...files]', 'Build given files')
   .option('--no-minify', 'Do not minify the output')
   .option('--source-map', 'Enable source maps')
-  .action((args, flags) => {
+  .action((env, args, flags) => {
     console.log(args, flags)
   })
 

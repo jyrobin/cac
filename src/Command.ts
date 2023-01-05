@@ -1,4 +1,4 @@
-import CAC from './CAC'
+import CAC, { CacCntx } from './CAC'
 import Option, { OptionConfig } from './Option'
 import {
   removeBrackets,
@@ -29,7 +29,7 @@ type HelpCallback = (sections: HelpSection[]) => void | HelpSection[]
 
 type CommandExample = ((bin: string) => string) | string
 
-class Command {
+class Command<T> {
   options: Option[]
   aliasNames: string[]
   /* Parsed command name */
@@ -40,13 +40,13 @@ class Command {
   versionNumber?: string
   examples: CommandExample[]
   helpCallback?: HelpCallback
-  globalCommand?: GlobalCommand
+  globalCommand?: GlobalCommand<T>
 
   constructor(
     public rawName: string,
     public description: string,
     public config: CommandConfig = {},
-    public cli: CAC
+    public cli: CAC<T>
   ) {
     this.options = []
     this.aliasNames = []
@@ -98,7 +98,7 @@ class Command {
     return this
   }
 
-  action(callback: (...args: any[]) => any) {
+  action(callback: (env: T, ...args: any[]) => any) {
     this.commandAction = callback
     return this
   }
@@ -130,8 +130,8 @@ class Command {
     })
   }
 
-  outputHelp() {
-    const { name, commands } = this.cli
+  outputHelp({ name }: CacCntx<T>) {
+    const { commands } = this.cli
     const {
       versionNumber,
       options: globalOptions,
@@ -243,10 +243,10 @@ class Command {
     }
   }
 
-  checkRequiredArgs() {
+  checkRequiredArgs({ args }: CacCntx<T>) {
     const minimalArgsCount = this.args.filter((arg) => arg.required).length
 
-    if (this.cli.args.length < minimalArgsCount) {
+    if (args.length < minimalArgsCount) {
       throw new CACError(
         `missing required args for command \`${this.rawName}\``
       )
@@ -258,8 +258,8 @@ class Command {
    *
    * Exit and output error when true
    */
-  checkUnknownOptions() {
-    const { options, globalCommand } = this.cli
+  checkUnknownOptions({ options }: CacCntx<T>) {
+    const { globalCommand } = this.cli
 
     if (!this.config.allowUnknownOptions) {
       for (const name of Object.keys(options)) {
@@ -279,8 +279,8 @@ class Command {
   /**
    * Check if the required string-type options exist
    */
-  checkOptionValue() {
-    const { options: parsedOptions, globalCommand } = this.cli
+  checkOptionValue({ options: parsedOptions }: CacCntx<T>) {
+    const { globalCommand } = this.cli
     const options = [...globalCommand.options, ...this.options]
     for (const option of options) {
       const value = parsedOptions[option.name.split('.')[0]]
@@ -297,8 +297,8 @@ class Command {
   }
 }
 
-class GlobalCommand extends Command {
-  constructor(cli: CAC) {
+class GlobalCommand<T> extends Command<T> {
+  constructor(cli: CAC<T>) {
     super('@@global@@', '', {}, cli)
   }
 }

@@ -6,7 +6,7 @@ cli
   .option('--env <env>', 'Set envs')
   .option('--foo-bar <value>', 'Set foo bar')
   .example('--env.API_SECRET xxx')
-  .action((options) => {
+  .action((env, options) => {
     console.log(options)
   })
 
